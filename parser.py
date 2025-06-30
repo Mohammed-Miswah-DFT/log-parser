@@ -35,19 +35,22 @@ def render_html_report(grouped_exceptions, output_file):
         <style>
             body { padding: 20px; }
             pre { white-space: pre-wrap; word-wrap: break-word; }
-            .search-input { margin-bottom: 20px; width: 400px; }
-            .accordion-button::after { margin-left: auto; }
+            .search-input, .date-input { margin-right: 10px; margin-bottom: 20px; }
         </style>
     </head>
     <body>
         <h2>Grouped Exception Report</h2>
         <p>Total Groups: {{ grouped|length }}</p>
 
-        <input type="text" id="searchBox" class="form-control search-input" placeholder="Search exception type...">
+        <div class="d-flex flex-wrap mb-3">
+            <input type="text" id="searchBox" class="form-control search-input" placeholder="Search exception type...">
+            <input type="date" id="startDate" class="form-control date-input">
+            <input type="date" id="endDate" class="form-control date-input">
+        </div>
 
         <div class="accordion" id="exceptionAccordion">
         {% for exception_type, entries in grouped.items() %}
-            <div class="accordion-item mb-3">
+            <div class="accordion-item mb-3" data-group-index="{{ loop.index }}">
                 <h2 class="accordion-header" id="heading{{ loop.index }}">
                     <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ loop.index }}">
                         {{ exception_type }} ({{ entries|length }} occurrences)
@@ -56,7 +59,7 @@ def render_html_report(grouped_exceptions, output_file):
                 <div id="collapse{{ loop.index }}" class="accordion-collapse collapse">
                     <div class="accordion-body">
                         {% for entry in entries %}
-                            <div class="mb-3">
+                            <div class="log-entry" data-date="{{ entry.timestamp[:10] }}">
                                 <strong>{{ entry.timestamp }}</strong>
                                 <pre>{{ entry.message }}</pre>
                                 <hr>
@@ -70,14 +73,37 @@ def render_html_report(grouped_exceptions, output_file):
 
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
         <script>
-            document.getElementById("searchBox").addEventListener("keyup", function() {
-                const filter = this.value.toLowerCase();
-                const items = document.querySelectorAll(".accordion-item");
-                items.forEach(item => {
-                    const heading = item.querySelector(".accordion-button").innerText.toLowerCase();
-                    item.style.display = heading.includes(filter) ? "" : "none";
+            const searchBox = document.getElementById("searchBox");
+            const startDateInput = document.getElementById("startDate");
+            const endDateInput = document.getElementById("endDate");
+
+            function filterLogs() {
+                const search = searchBox.value.toLowerCase();
+                const startDate = startDateInput.value;
+                const endDate = endDateInput.value;
+
+                document.querySelectorAll(".accordion-item").forEach(group => {
+                    const header = group.querySelector(".accordion-button").innerText.toLowerCase();
+                    const entries = group.querySelectorAll(".log-entry");
+                    let visibleCount = 0;
+
+                    entries.forEach(entry => {
+                        const entryDate = entry.dataset.date;
+                        const matchesDate =
+                            (!startDate || entryDate >= startDate) &&
+                            (!endDate || entryDate <= endDate);
+
+                        entry.style.display = matchesDate ? "" : "none";
+                        if (matchesDate) visibleCount++;
+                    });
+
+                    group.style.display = (header.includes(search) && visibleCount > 0) ? "" : "none";
                 });
-            });
+            }
+
+            searchBox.addEventListener("keyup", filterLogs);
+            startDateInput.addEventListener("change", filterLogs);
+            endDateInput.addEventListener("change", filterLogs);
         </script>
     </body>
     </html>
@@ -88,6 +114,7 @@ def render_html_report(grouped_exceptions, output_file):
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(html)
     print(f"Grouped HTML report generated: {output_file}")
+
 
 
 def main():
