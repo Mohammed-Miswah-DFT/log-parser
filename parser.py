@@ -24,7 +24,6 @@ def extract_exceptions(log_text):
 
     return grouped
 
-
 def render_html_report(grouped_exceptions, output_file):
     template_str = """
     <!DOCTYPE html>
@@ -35,31 +34,42 @@ def render_html_report(grouped_exceptions, output_file):
         <style>
             body { padding: 20px; }
             pre { white-space: pre-wrap; word-wrap: break-word; }
-            .search-input, .date-input { margin-right: 10px; margin-bottom: 20px; }
+            .filters { margin-bottom: 20px; }
+            .accordion-button::after { margin-left: auto; }
         </style>
     </head>
     <body>
         <h2>Grouped Exception Report</h2>
-        <p>Total Groups: {{ grouped|length }}</p>
-
-        <div class="d-flex flex-wrap mb-3">
-            <input type="text" id="searchBox" class="form-control search-input" placeholder="Search exception type...">
-            <input type="date" id="startDate" class="form-control date-input">
-            <input type="date" id="endDate" class="form-control date-input">
+        <div class="filters row g-2">
+            <div class="col-md-4">
+                <input type="text" id="searchBox" class="form-control" placeholder="Search exception type...">
+            </div>
+            <div class="col-md-2">
+                <input type="date" id="fromDate" class="form-control" />
+            </div>
+            <div class="col-md-2">
+                <input type="date" id="toDate" class="form-control" />
+            </div>
+            <div class="col-md-2">
+                <button id="resetBtn" class="btn btn-secondary w-100">Reset Filters</button>
+            </div>
         </div>
+
+        <p id="totalGroups">Total Groups: {{ grouped|length }}</p>
 
         <div class="accordion" id="exceptionAccordion">
         {% for exception_type, entries in grouped.items() %}
-            <div class="accordion-item mb-3" data-group-index="{{ loop.index }}">
+            <div class="accordion-item mb-3 exception-group" data-type="{{ exception_type }}">
                 <h2 class="accordion-header" id="heading{{ loop.index }}">
                     <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ loop.index }}">
-                        {{ exception_type }} ({{ entries|length }} occurrences)
+                        <span class="group-title">{{ exception_type }}</span> 
+                        (<span class="occ-count">{{ entries|length }}</span> &nbsp occurrences)
                     </button>
                 </h2>
                 <div id="collapse{{ loop.index }}" class="accordion-collapse collapse">
                     <div class="accordion-body">
                         {% for entry in entries %}
-                            <div class="log-entry" data-date="{{ entry.timestamp[:10] }}">
+                            <div class="entry" data-date="{{ entry.timestamp[:10] }}">
                                 <strong>{{ entry.timestamp }}</strong>
                                 <pre>{{ entry.message }}</pre>
                                 <hr>
@@ -73,48 +83,65 @@ def render_html_report(grouped_exceptions, output_file):
 
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
         <script>
-            const searchBox = document.getElementById("searchBox");
-            const startDateInput = document.getElementById("startDate");
-            const endDateInput = document.getElementById("endDate");
+            function updateDisplay() {
+                const searchTerm = document.getElementById("searchBox").value.toLowerCase();
+                const fromDate = document.getElementById("fromDate").value;
+                const toDate = document.getElementById("toDate").value;
 
-            function filterLogs() {
-                const search = searchBox.value.toLowerCase();
-                const startDate = startDateInput.value;
-                const endDate = endDateInput.value;
+                let totalGroups = 0;
 
-                document.querySelectorAll(".accordion-item").forEach(group => {
-                    const header = group.querySelector(".accordion-button").innerText.toLowerCase();
-                    const entries = group.querySelectorAll(".log-entry");
+                document.querySelectorAll(".exception-group").forEach(group => {
+                    const type = group.getAttribute("data-type").toLowerCase();
+                    const matchesSearch = type.includes(searchTerm);
+
+                    const entries = group.querySelectorAll(".entry");
                     let visibleCount = 0;
 
                     entries.forEach(entry => {
-                        const entryDate = entry.dataset.date;
-                        const matchesDate =
-                            (!startDate || entryDate >= startDate) &&
-                            (!endDate || entryDate <= endDate);
+                        const entryDate = entry.getAttribute("data-date");
 
-                        entry.style.display = matchesDate ? "" : "none";
-                        if (matchesDate) visibleCount++;
+                        const show = (!fromDate || entryDate >= fromDate) &&
+                                     (!toDate   || entryDate <= toDate);
+
+                        entry.style.display = show ? "" : "none";
+                        if (show) visibleCount++;
                     });
 
-                    group.style.display = (header.includes(search) && visibleCount > 0) ? "" : "none";
+                    group.querySelector(".occ-count").textContent = visibleCount;
+
+                    if (matchesSearch && visibleCount > 0) {
+                        group.style.display = "";
+                        totalGroups++;
+                    } else {
+                        group.style.display = "none";
+                    }
                 });
+
+                document.getElementById("totalGroups").textContent = `Total Groups: ${totalGroups}`;
             }
 
-            searchBox.addEventListener("keyup", filterLogs);
-            startDateInput.addEventListener("change", filterLogs);
-            endDateInput.addEventListener("change", filterLogs);
+            document.getElementById("searchBox").addEventListener("input", updateDisplay);
+            document.getElementById("fromDate").addEventListener("change", updateDisplay);
+            document.getElementById("toDate").addEventListener("change", updateDisplay);
+            document.getElementById("resetBtn").addEventListener("click", () => {
+                document.getElementById("searchBox").value = "";
+                document.getElementById("fromDate").value = "";
+                document.getElementById("toDate").value = "";
+                updateDisplay();
+            });
+
+            updateDisplay(); // initial state
         </script>
     </body>
     </html>
     """
+    from jinja2 import Template
     template = Template(template_str)
     html = template.render(grouped=grouped_exceptions)
 
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(html)
     print(f"Grouped HTML report generated: {output_file}")
-
 
 
 def main():
