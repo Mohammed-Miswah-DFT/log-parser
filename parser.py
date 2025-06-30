@@ -29,7 +29,7 @@ def render_html_report(grouped_exceptions, output_file):
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Grouped Exception Report</title>
+        <title>Parsed Log Report</title>
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
         <style>
             body { padding: 20px; }
@@ -57,30 +57,46 @@ def render_html_report(grouped_exceptions, output_file):
 
         <p id="totalGroups">Total Groups: {{ grouped|length }}</p>
 
-        <div class="accordion" id="exceptionAccordion">
-        {% for exception_type, entries in grouped.items() %}
-            <div class="accordion-item mb-3 exception-group" data-type="{{ exception_type }}">
-                <h2 class="accordion-header" id="heading{{ loop.index }}">
-                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ loop.index }}">
-                        <span class="group-title">{{ exception_type }}</span> 
-                        (<span class="occ-count">{{ entries|length }}</span> &nbsp occurrences)
-                    </button>
-                </h2>
-                <div id="collapse{{ loop.index }}" class="accordion-collapse collapse">
-                    <div class="accordion-body">
-                        {% for entry in entries %}
-                            <div class="entry" data-date="{{ entry.timestamp[:10] }}">
-                                <strong>{{ entry.timestamp }}</strong>
-                                <pre>{{ entry.message }}</pre>
-                                <hr>
+   <div class="accordion" id="exceptionAccordion">
+    {% for exception_type, entries in grouped.items() %}
+    <div class="accordion-item mb-3 exception-group" data-type="{{ exception_type }}">
+        <h2 class="accordion-header" id="heading{{ loop.index }}">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                data-bs-target="#collapse{{ loop.index }}">
+                <span class="group-title">{{ exception_type }}</span>
+                (<span class="occ-count">{{ entries|length }}</span> &nbsp occurrences)
+            </button>
+        </h2>
+        <div id="collapse{{ loop.index }}" class="accordion-collapse collapse">
+            <div class="accordion-body">
+                <div class="accordion" id="exceptionInsideAccordion">
+                    {% for entry in entries %}
+                  {% set short_type = entry.message.split(':')[0] %}
+                    <div class="accordion-item mb-3 exception-group" data-type="{{ short_type }}">
+                        <h2 class="accordion-header" id="heading{{ loop.index }}">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                data-bs-target="#collapseinside{{ loop.index }}">
+                                <span class="group-title">{{ short_type }}</span>
+                            </button>
+                        </h2>
+                        <div id="collapseinside{{loop.index}}" class="accordion-collapse collapse">
+                            <div class="accordion-body">
+                                <div class="entry" data-date="{{ entry.timestamp[:10] }}">
+                                    <strong>{{ entry.timestamp }}</strong>
+                                    <pre>{{ entry.message }}</pre>
+                                    <hr>
+                                </div>
                             </div>
-                        {% endfor %}
+                        </div>
                     </div>
+                    {% endfor %}
                 </div>
-            </div>
-        {% endfor %}
-        </div>
 
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
         <script>
             function updateDisplay() {
